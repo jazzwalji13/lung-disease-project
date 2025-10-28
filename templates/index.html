@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lung Disease Detector - Upload X-Ray</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🫁 Lung Disease Detection System</h1>
+            <p>Upload a chest X-ray image for AI analysis</p>
+        </header>
+
+        <div class="upload-section">
+            <div class="upload-box" id="uploadBox">
+                <input type="file" id="xrayUpload" accept="image/*" hidden>
+                <div class="upload-content">
+                    <div class="upload-icon">📁</div>
+                    <h3>Upload Chest X-Ray</h3>
+                    <p>Supported formats: PNG, JPG, JPEG</p>
+                    <p><small>Max file size: 16MB</small></p>
+                    <button onclick="document.getElementById('xrayUpload').click()">
+                        Choose X-Ray Image
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="preview-section" id="previewSection" style="display: none;">
+            <h3>X-Ray Preview</h3>
+            <div class="image-preview">
+                <img id="previewImage" src="" alt="X-Ray Preview">
+                <div class="image-info">
+                    <p id="fileName"></p>
+                    <p id="fileSize"></p>
+                </div>
+            </div>
+            <button onclick="analyzeXray()" class="analyze-btn">
+                🔍 Analyze with AI
+            </button>
+        </div>
+
+        <div class="results-section" id="resultsSection" style="display: none;">
+            <h3>AI Diagnosis Results</h3>
+            <div class="results-card">
+                <div class="result-image">
+                    <img id="resultImage" src="" alt="Analyzed X-Ray">
+                </div>
+                <div class="result-details">
+                    <div class="diagnosis" id="diagnosisResult"></div>
+                    <div class="confidence" id="confidenceResult"></div>
+                    <div class="technical-info">
+                        <div class="info-item">
+                            <span class="label">Analysis Time:</span>
+                            <span id="analysisTime"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Image Size:</span>
+                            <span id="imageSize"></span>
+                        </div>
+                    </div>
+                    <div class="advice" id="adviceResult"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sample-section">
+            <h3>💡 Sample Results</h3>
+            <div class="sample-cases">
+                <div class="sample-case normal">
+                    <strong>Normal X-Ray:</strong> Clear lungs, high confidence (90-98%)
+                </div>
+                <div class="sample-case pneumonia">
+                    <strong>Pneumonia:</strong> Consolidation detected (85-94%)
+                </div>
+                <div class="sample-case borderline">
+                    <strong>Borderline:</strong> Minor findings, follow-up needed
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>AI-Powered Medical Imaging Analysis | Upload real chest X-rays for instant diagnosis</p>
+        </footer>
+    </div>
+
+    <script>
+        let currentImage = null;
+
+        // Handle file upload
+        document.getElementById('xrayUpload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                currentImage = file;
+                
+                // Check file size
+                if (file.size > 16 * 1024 * 1024) {
+                    alert('File too large! Please select an image under 16MB.');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('previewImage').src = e.target.result;
+                    document.getElementById('fileName').textContent = `File: ${file.name}`;
+                    document.getElementById('fileSize').textContent = `Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+                    document.getElementById('previewSection').style.display = 'block';
+                    document.getElementById('resultsSection').style.display = 'none';
+                    
+                    // Update upload box
+                    document.querySelector('.upload-box h3').textContent = 'Ready for Analysis';
+                    document.querySelector('.upload-box p').textContent = 'Click "Analyze with AI" below';
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Analyze the X-ray
+        async function analyzeXray() {
+            if (!currentImage) {
+                alert('Please select a chest X-ray image first!');
+                return;
+            }
+
+            const analyzeBtn = document.querySelector('.analyze-btn');
+            const originalText = analyzeBtn.innerHTML;
+            analyzeBtn.innerHTML = '🔄 AI Analysis in Progress...';
+            analyzeBtn.disabled = true;
+
+            // Show loading
+            document.getElementById('resultsSection').innerHTML = `
+                <div class="loading">
+                    <h3>AI Analysis in Progress</h3>
+                    <div class="spinner"></div>
+                    <p>Analyzing chest X-ray for signs of pneumonia and other lung conditions...</p>
+                    <p><small>This may take a few seconds</small></p>
+                </div>
+            `;
+            document.getElementById('resultsSection').style.display = 'block';
+
+            const formData = new FormData();
+            formData.append('xray', currentImage);
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+
+                // Display results
+                document.getElementById('resultImage').src = result.image_data;
+                document.getElementById('diagnosisResult').innerHTML = 
+                    `${result.emoji} ${result.diagnosis}`;
+                document.getElementById('diagnosisResult').style.color = result.color;
+                document.getElementById('confidenceResult').textContent = 
+                    `AI Confidence: ${result.confidence}`;
+                document.getElementById('adviceResult').textContent = result.advice;
+                document.getElementById('analysisTime').textContent = result.analysis_time;
+                document.getElementById('imageSize').textContent = result.image_size;
+
+                document.getElementById('resultsSection').style.display = 'block';
+
+            } catch (error) {
+                document.getElementById('resultsSection').innerHTML = `
+                    <div class="error">
+                        <h3>Analysis Failed</h3>
+                        <p>${error.message}</p>
+                        <p><small>Please try again with a different image file.</small></p>
+                    </div>
+                `;
+            }
+
+            analyzeBtn.innerHTML = originalText;
+            analyzeBtn.disabled = false;
+            
+            // Scroll to results
+            document.getElementById('resultsSection').scrollIntoView({ 
+                behavior: 'smooth' 
+            });
+        }
+    </script>
+</body>
+</html>
